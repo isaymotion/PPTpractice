@@ -47,6 +47,9 @@ td:nth-child(2){min-width:120px}
 [hidden]{display:none!important}
 .cmp{position:relative;min-width:90px}.cmp:after{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--tx)}
 footer{margin:24px 0 8px;text-align:center}footer a{color:var(--ac)}.tip{border-top:1px solid var(--bd);padding:10px 0}
+.nv{max-width:220px}.nv canvas{border-radius:6px}.lib{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--bd);padding:8px 0}.lib span{flex:1;min-width:140px}.lib button{padding:7px 12px}
+#screen{position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center;z-index:9;line-height:0}#screen canvas{width:auto;height:auto}#shint{position:fixed;inset:auto 0 24px 0;text-align:center;color:#9aa;font-size:1rem;line-height:1.4}
+#gr{position:fixed;inset:0;background:var(--bg);overflow:auto;padding:16px;z-index:5}#gr .bar,#gl{max-width:760px;margin:8px auto}#gr button.g{display:block;width:100%;text-align:left;margin:6px 0}#gr button.cu{border-color:var(--ac);color:var(--ac)}
 </style>
 </head>
 <body>
@@ -58,23 +61,31 @@ footer{margin:24px 0 8px;text-align:center}footer a{color:var(--ac)}.tip{border-
 <label for="fp">PowerPoint file (.pptx)</label><input type="file" id="fp" accept=".pptx">
 <label for="ff">PDF export of the same deck</label><input type="file" id="ff" accept=".pdf,application/pdf">
 <label for="tm">Target total time (minutes)</label><input type="number" id="tm" value="30" min="1">
+<label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" id="sv" checked style="width:auto"> Save to library (up to 5 decks, so you don't re-upload)</label>
 <div class="row"><button id="go">Load and check notes</button></div>
 <div id="msg" class="m"></div>
 </div>
+<div id="lib"></div>
 <div id="chk"></div>
 <div id="hist"></div>
 </section>
 
 <section id="prac" hidden>
 <div class="row"><button id="ex" class="g">Exit to start page</button></div>
+<div id="pj" class="row" style="align-items:center" hidden><span id="pjs" class="pill bad">Projector window not connected</span><button id="pjr" class="g" hidden>Reopen projector window</button></div>
 <div class="bar"><span id="tt" class="big">0:00</span><span id="pace" class="pill ok">On pace</span><span id="sn" class="m"></span></div>
 <div class="cw"><canvas id="cv"></canvas></div>
 <div class="m" style="margin-top:8px">This slide <b id="st">0:00</b> of <span id="sg">0:00</span></div>
 <div class="pg"><i id="pb"></i></div>
+<div class="nv m" style="margin-top:10px">Next slide<div class="cw"><canvas id="ncv"></canvas></div></div>
 <div class="card" id="nt"><b>Notes</b><div id="nb"></div></div>
 <div class="row"><button id="pv" class="g" aria-label="Previous slide">Back</button><button id="pp">Pause</button><button id="nx" aria-label="Next slide">Next</button></div>
-<div class="row"><button id="hn" class="g">Hide notes</button><button id="fin" class="g">Finish run</button></div>
-<p class="m">Keys: right arrow or space = next, left arrow = back, P = pause.</p>
+<div id="jm" class="pill wn" hidden></div>
+<div class="row"><button id="gb" class="g">Jump to slide (G)</button><button id="lb" class="g">Back to last slide (L)</button></div>
+<div class="row"><button id="hn" class="g">Hide notes</button><button id="bl" class="g" hidden>Blank screen (B)</button><button id="fin" class="g">Finish run</button></div>
+<div id="gr" hidden><div class="bar"><b>Jump to slide</b><button id="gc" class="g">Close</button></div><div id="gl"></div></div>
+<p class="m" id="pmsg"></p>
+<p class="m">Keys: right arrow or space = next, left arrow = back, P = pause, B = blank the projector.</p>
 </section>
 
 <section id="rev" hidden>
@@ -84,8 +95,10 @@ footer{margin:24px 0 8px;text-align:center}footer a{color:var(--ac)}.tip{border-
 <div class="row"><button id="again">Practice again</button><button id="home" class="g">Back to setup</button></div>
 </section>
 <footer class="m">App created by Isabella Navarro, MD. Latest version October 2026. <a href="mailto:isaymotion@gmail.com">isaymotion@gmail.com</a></footer>
+<p id="off" class="m" style="text-align:center"></p>
 </main>
 
+<section id="screen" hidden><canvas id="scv"></canvas><div id="shint">Drag this window to the projector, then click it or press F for fullscreen.</div></section>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
@@ -126,9 +139,9 @@ $('#go').onclick=async()=>{
  const a=$('#fp').files[0],b=$('#ff').files[0],m=$('#msg');
  if(!a||!b){m.textContent='Choose both a .pptx and a PDF.';return}
  m.textContent='Reading files…';
- try{S=await parsePptx(a);pdf=await pdfjsLib.getDocument({data:await b.arrayBuffer()}).promise;deck=a.name}
+ try{S=await parsePptx(a);pdfBuf=await b.arrayBuffer();pdf=await pdfjsLib.getDocument({data:pdfBuf.slice(0)}).promise;deck=a.name;saved=false}
  catch(e){m.textContent='Could not read the files: '+e.message;return}
- m.textContent='';plan();
+ m.textContent='';plan();if($('#sv').checked)await saveDeck();
 };
 
 function plan(){
@@ -142,8 +155,8 @@ function plan(){
  if(noN)msgs+=`<p class="wn">${noN} slide${noN>1?'s have':' has'} no notes.</p>`;
  const rows=S.map((s,i)=>{const e=s.w/WPM*60;let f='OK',c='ok';if(!s.w){f='No notes';c='bad'}else if(s.w>mean*1.75){f='Heavy for one slide';c='wn'}
   return `<tr><td>${i+1}</td><td>${esc(s.t)||'(no title)'}</td><td>${s.w}</td><td>${fmt(e)}</td><td>${fmt(tg[i])}</td><td class="${c}">${f}</td></tr>`}).join('');
- $('#chk').innerHTML=`<div class="card"><b>Notes check</b>${msgs}<div class="tw"><table><tr><th>#</th><th>Title</th><th>Words</th><th>Speak</th><th>Target</th><th>Flag</th></tr>${rows}</table></div><div class="row"><button id="st0">Start practice</button></div></div>`;
- $('#st0').onclick=start;
+ $('#chk').innerHTML=`<div class="card"><b>Notes check</b>${msgs}<div class="tw"><table><tr><th>#</th><th>Title</th><th>Words</th><th>Speak</th><th>Target</th><th>Flag</th></tr>${rows}</table></div><div class="row"><button id="st0">Start practice</button><button id="pr0" class="g">Present (two windows)</button></div><p id="sm" class="m"></p></div>`;
+ $('#st0').onclick=()=>start(false);$('#pr0').onclick=presentStart;
  hist();
 }
 
@@ -154,15 +167,15 @@ function hist(){
 
 function view(id){['setup','prac','rev'].forEach(v=>$('#'+v).hidden=v!=id);window.scrollTo(0,0)}
 
-function start(){
+function start(p){present=p===true;blank=false;$('#bl').textContent='Blank screen (B)';backTo=null;wake(true);
  cur=0;spent=S.map(()=>0);hide=false;run=true;last=Date.now();
  $('#hn').textContent='Hide notes';$('#nb').hidden=false;$('#pp').textContent='Pause';
- view('prac');show();
+ $('#bl').hidden=!present;$('#pmsg').textContent=present?'Projector window is synced. Use the arrow keys or your clicker in this window.':'';if(present&&bc)bc.postMessage({blank:false});view('prac');show();
 }
 
 async function show(){
  const n=++rid;$('#sn').textContent=`Slide ${cur+1} of ${S.length}`;
- $('#nb').textContent=S[cur].n||'(No notes on this slide)';$('#nx').textContent=cur==S.length-1?'Finish':'Next';ui();
+ $('#nb').textContent=S[cur].n||'(No notes on this slide)';$('#nx').textContent=cur==S.length-1?'Finish':'Next';ui();sync();nextPrev();
  const pg=await pdf.getPage(Math.min(cur+1,pdf.numPages)),c=$('#cv'),v=pg.getViewport({scale:1}),
   vp=pg.getViewport({scale:c.parentElement.clientWidth/v.width*(devicePixelRatio||1)});
  if(n!=rid)return;
@@ -183,24 +196,25 @@ function ui(){
 
 setInterval(()=>{if(!run)return;const n=Date.now();spent[cur]+=(n-last)/1000;last=n;ui()},250);
 
-const go=i=>{if(i<0||i>=S.length)return;cur=i;last=Date.now();show()};
+const go=i=>{if(i<0||i>=S.length)return;if(i!=cur)backTo=cur;cur=i;last=Date.now();show()};
 const tog=()=>{run=!run;last=Date.now();$('#pp').textContent=run?'Pause':'Resume'};
 const nxt=()=>cur>=S.length-1?finish():go(cur+1);
 let exT;
 function exitRun(){const b=$('#ex');if(!b.dataset.arm){b.dataset.arm=1;b.textContent='Tap again to exit (run not saved)';exT=setTimeout(()=>{delete b.dataset.arm;b.textContent='Exit to start page'},3500);return}
- clearTimeout(exT);delete b.dataset.arm;b.textContent='Exit to start page';run=false;view('setup');hist()}
+ clearTimeout(exT);delete b.dataset.arm;b.textContent='Exit to start page';run=false;endPresent();view('setup');hist()}
 $('#nx').onclick=nxt;$('#ex').onclick=exitRun;$('#pv').onclick=()=>go(cur-1);$('#pp').onclick=tog;
 $('#hn').onclick=()=>{hide=!hide;$('#nb').hidden=hide;$('#hn').textContent=hide?'Show notes':'Hide notes'};
 $('#fin').onclick=finish;$('#again').onclick=start;$('#home').onclick=()=>{view('setup');hist()};
 document.addEventListener('keydown',e=>{
  if($('#prac').hidden||/INPUT|TEXTAREA/.test(e.target.tagName))return;
- if(e.key=='ArrowRight'||e.key==' '){e.preventDefault();nxt()}
+ if(keyNav(e))return;
  else if(e.key=='ArrowLeft'){e.preventDefault();go(cur-1)}
  else if(e.key=='p'||e.key=='P')tog();
+ else if((e.key=='b'||e.key=='B')&&present)toggleBlank();
 });
 
 function finish(){
- run=false;
+ run=false;endPresent();
  const r=ld();r.push({deck,d:Date.now(),sp:spent.map(Math.round),tg:tg.map(Math.round)});sv(r);
  const t=spent.reduce((a,b)=>a+b,0),T=tg.reduce((a,b)=>a+b,0),d=t-T;
  df=S.map((s,i)=>spent[i]-tg[i]);
@@ -243,6 +257,131 @@ async function openRv(k){
 $('#rvp').onclick=()=>openRv((rk-1+flagged.length)%flagged.length);
 $('#rvx').onclick=()=>openRv((rk+1)%flagged.length);
 $('#rvc').onclick=()=>{$('#rv').hidden=true};
+let bc=null,present=false,saved=false,pdfBuf,blank=false;
+try{bc=new BroadcastChannel('pp-present')}catch(e){}
+
+/* Library: up to 5 decks kept in this browser (IndexedDB). */
+const idb=new Promise((ok,no)=>{try{const r=indexedDB.open('pp-lib',1);r.onupgradeneeded=()=>{r.result.createObjectStore('meta',{keyPath:'name'});r.result.createObjectStore('pdf')};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)}catch(e){no(e)}});
+const q=async(st,mode,f)=>{const d=await idb;return new Promise((ok,no)=>{const t=d.transaction(st,mode),r=f(...[].concat(st).map(n=>t.objectStore(n)));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>no(t.error)})};
+const libList=()=>q('meta','readonly',s=>s.getAll());
+const libGet=async n=>({m:await q('meta','readonly',s=>s.get(n)),p:await q('pdf','readonly',s=>s.get(n))});
+const libPut=(m,buf)=>q(['meta','pdf'],'readwrite',(a,b)=>{b.put(buf,m.name);return a.put(m)});
+const libDel=n=>q(['meta','pdf'],'readwrite',(a,b)=>{b.delete(n);return a.delete(n)});
+
+async function saveDeck(){
+ const sm=$('#sm'),say=t=>{if(sm)sm.textContent=t};
+ try{
+  const l=await libList();
+  if(l.length>=5&&!l.some(x=>x.name==deck)){say('Library is full (5 decks). Delete one in the library list to save this deck.');return false}
+  await libPut({name:deck,added:Date.now(),S,pages:pdf.numPages,min:Math.max(1,+$('#tm').value||30)},pdfBuf);
+  saved=true;await renderLib();say('Saved in your library. You can use it later without uploading again.');return true;
+ }catch(e){say('Could not save in this browser: '+e.message);return false}
+}
+async function renderLib(){
+ let l=[];try{l=await libList()}catch(e){}
+ l.sort((a,b)=>b.added-a.added);
+ $('#lib').innerHTML=`<div class="card"><b>Library (${l.length} of 5 decks)</b>`+(l.length?l.map(x=>`<div class="lib"><span><b>${esc(x.name)}</b><br><small class="m">${x.S.length} slides, ${x.min} min, saved ${new Date(x.added).toLocaleDateString()}</small></span><button data-u="${esc(x.name)}">Use</button><button class="g" data-d="${esc(x.name)}">Delete</button></div>`).join(''):'<p class="m">No saved decks yet. Upload a deck above and it will appear here.</p>')+'</div>';
+ $('#lib').querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>useDeck(b.dataset.u));
+ $('#lib').querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>delDeck(b.dataset.d));
+}
+async function useDeck(n){
+ try{const {m,p}=await libGet(n);if(!m||!p)return;
+  S=m.S;deck=m.name;pdfBuf=p;pdf=await pdfjsLib.getDocument({data:p.slice(0)}).promise;saved=true;$('#tm').value=m.min;plan();$('#sm').textContent='Loaded from your library.'}
+ catch(e){$('#msg').textContent='Could not open that deck: '+e.message}
+}
+function delDeck(n){
+ const b=[...document.querySelectorAll('[data-d]')].find(x=>x.dataset.d==n);
+ if(!b.dataset.arm){b.dataset.arm='1';b.textContent='Tap again to delete';setTimeout(()=>{b.dataset.arm='';b.textContent='Delete'},3500);return}
+ libDel(n).then(()=>{if(n==deck)saved=false;renderLib()});
+}
+
+/* Slide painter (fits a canvas to its box, cancels stale renders). */
+const rts={};
+async function paint(c,i,key,box){
+ const n=((rts[key]||{}).n||0)+1;rts[key]={n,t:(rts[key]||{}).t};
+ const pg=await pdf.getPage(Math.min(i+1,pdf.numPages)),v=pg.getViewport({scale:1}),dpr=devicePixelRatio||1,
+  sc=box?Math.min(box.w/v.width,box.h/v.height):c.parentElement.clientWidth/v.width,vp=pg.getViewport({scale:sc*dpr});
+ if(rts[key].n!=n)return;
+ try{rts[key].t&&rts[key].t.cancel()}catch(e){}
+ c.width=vp.width;c.height=vp.height;
+ if(box){c.style.width=vp.width/dpr+'px';c.style.height=vp.height/dpr+'px'}
+ rts[key].t=pg.render({canvasContext:c.getContext('2d'),viewport:vp});
+ try{await rts[key].t.promise}catch(e){}
+}
+function nextPrev(){const w=$('.nv');w.hidden=cur>=S.length-1;if(!w.hidden)paint($('#ncv'),cur+1,'n')}
+
+/* Present mode: laptop window controls, a second window shows the slide on the projector. */
+function sync(){if(present&&bc)bc.postMessage({slide:cur,deck})}
+function endPresent(){if(present&&bc)bc.postMessage({blank:true});present=false;wake(false)}
+function toggleBlank(){blank=!blank;if(bc)bc.postMessage({blank});$('#bl').textContent=blank?'Show projector (B)':'Blank screen (B)'}
+async function presentStart(){
+ const sm=$('#sm'),w=window.open(location.href.split('#')[0]+'#screen','pp-screen');
+ if(!w){sm.textContent='The projector window was blocked. Allow pop-ups for this site, then try again.';return}
+ if(!saved&&!await saveDeck()){try{w.close()}catch(e){}return}
+ start(true);
+}
+$('#bl').onclick=toggleBlank;
+
+if(location.hash=='#screen'){
+ document.querySelector('main').hidden=true;$('#screen').hidden=false;document.title='Projector';
+ let sd='',sl=0,bk=false;const cv=$('#scv'),box=()=>({w:innerWidth,h:innerHeight}),
+  sdraw=()=>{cv.style.visibility=bk?'hidden':'visible';if(pdf)paint(cv,sl,'s',box())};
+ if(bc){
+  bc.onmessage=async e=>{const m=e.data;
+   if(m.blank!==undefined){bk=m.blank;sdraw();return}
+   if(m.deck===undefined)return;
+   if(m.deck!=sd){sd=m.deck;const {p}=await libGet(sd);if(!p)return;pdf=await pdfjsLib.getDocument({data:p.slice(0)}).promise}
+   sl=m.slide;sdraw()};
+  bc.postMessage({hello:1,ping:1,fs:false});setInterval(()=>bc.postMessage({ping:1,fs:!!document.fullscreenElement}),2000);wake(true);
+ }
+ addEventListener('resize',sdraw);
+ const fs=()=>{if(document.documentElement.requestFullscreen)document.documentElement.requestFullscreen();$('#shint').hidden=true;wake(true)};
+ addEventListener('click',fs);addEventListener('keydown',e=>{if(e.key=='f'||e.key=='F')fs()});
+}else{
+ if(bc)bc.onmessage=e=>{const d=e.data;if(d.ping){pingT=Date.now();pingFs=d.fs}if(d.hello&&present){sync();bc.postMessage({blank})}};
+ renderLib();
+}
+/* Keep the screen awake (laptop and projector windows). */
+let backTo=null,jb='',jt,wl=null,pingT=0,pingFs=false,pw=null;
+async function wake(on){try{if(on&&'wakeLock' in navigator){if(!wl){wl=await navigator.wakeLock.request('screen');wl.addEventListener('release',()=>{wl=null})}}else if(!on&&wl){await wl.release();wl=null}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState=='visible'&&(run||location.hash=='#screen'))wake(true)});
+
+/* Clicker keys, slide numbers and jump-to-slide. */
+function nxtKey(){if(cur>=S.length-1)$('#pmsg').textContent='This is the last slide. Tap Finish to see your analysis.';else go(cur+1)}
+function showJ(){const j=$('#jm');j.hidden=!jb;j.textContent='Go to slide '+jb+' (press Enter)'}
+function keyNav(e){
+ if(!$('#gr').hidden){if(e.key=='Escape')closeGrid();return e.key!='Enter'&&e.key!=' '&&e.key!='Tab'}
+ const k=e.key;
+ if(/^[0-9]$/.test(k)){jb+=k;clearTimeout(jt);jt=setTimeout(()=>{jb='';showJ()},3000);showJ();return true}
+ if(k=='Escape'){jb='';showJ();return true}
+ if(k=='Enter'){e.preventDefault();if(jb){const n=+jb;jb='';showJ();if(n>=1&&n<=S.length)go(n-1)}else nxtKey();return true}
+ if(k=='ArrowRight'||k=='ArrowDown'||k=='PageDown'||k==' '){e.preventDefault();nxtKey();return true}
+ if(k=='ArrowUp'||k=='PageUp'){e.preventDefault();go(cur-1);return true}
+ if(k=='.'&&present){toggleBlank();return true}
+ if(k=='g'||k=='G'){openGrid();return true}
+ if(k=='l'||k=='L'){if(backTo!=null)go(backTo);return true}
+ return false;
+}
+function openGrid(){const gl=$('#gl');
+ gl.innerHTML=S.map((s,i)=>`<button class="g${i==cur?' cu':''}" data-j="${i}">${i+1}. ${esc(s.t)||'(no title)'}</button>`).join('');
+ gl.querySelectorAll('[data-j]').forEach(b=>b.onclick=()=>{closeGrid();go(+b.dataset.j)});
+ $('#gr').hidden=false}
+function closeGrid(){$('#gr').hidden=true}
+$('#gb').onclick=openGrid;$('#gc').onclick=closeGrid;$('#lb').onclick=()=>{if(backTo!=null)go(backTo)};
+
+/* Projector connection badge. */
+setInterval(()=>{const bx=$('#pj');bx.hidden=!(present&&!$('#prac').hidden);if(bx.hidden)return;
+ const alive=Date.now()-pingT<5000,s=$('#pjs');
+ s.textContent=alive?(pingFs?'Projector connected':'Projector connected, not fullscreen'):'Projector window not connected';
+ s.className='pill '+(alive?(pingFs?'ok':'wn'):'bad');$('#pjr').hidden=alive},1000);
+$('#pjr').onclick=()=>{pw=window.open(location.href.split('#')[0]+'#screen','pp-screen');if(!pw)$('#pmsg').textContent='Allow pop-ups to reopen the projector window.'};
+
+if(location.hash=='#screen')wake(true);
+/* Offline use: a service worker (sw.js) keeps the app and its libraries on this device. */
+const LIBS=['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js','https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js','https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'];
+async function offStatus(){const o=$('#off');try{const c=await caches.open('pp-v1'),ok=(await Promise.all(LIBS.map(u=>c.match(u)))).every(Boolean)&&!!(await c.match('index.html'));
+ o.textContent=ok?'Offline ready: this app will open without internet on this device.':'Not ready for offline use yet. Reload this page once while online.'}catch(e){}}
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').then(()=>navigator.serviceWorker.ready).then(()=>setTimeout(offStatus,2500)).catch(()=>{$('#off').textContent='Offline mode works in the GitHub-hosted version.'});
 </script>
 </body>
 </html>
