@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Presentation Practice</title>
+<meta name="theme-color" content="#2b2f8f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Practice">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+:root{--bg:#eef2f4;--card:#fff;--tx:#14232b;--mut:#5d6f78;--ac:#0f766e;--ok:#15803d;--bad:#b42350;--wn:#a16207;--bd:#d5dde1;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1a20;--card:#162830;--tx:#e6eef1;--mut:#93a8b1;--ac:#2dd4bf;--ok:#4ade80;--bad:#fb7185;--wn:#facc15;--bd:#27414b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1a20;--card:#162830;--tx:#e6eef1;--mut:#93a8b1;--ac:#2dd4bf;--ok:#4ade80;--bad:#fb7185;--wn:#facc15;--bd:#27414b;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 "DM Sans",system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:1.6rem;margin:8px 0}
+.m{color:var(--mut);font-size:.92rem}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin:12px 0}
+label{display:block;margin:10px 0 4px;font-weight:500}
+input[type=file],input[type=number]{width:100%;padding:9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+button{font:inherit;font-weight:500;padding:11px 16px;border-radius:8px;border:0;background:var(--ac);color:#fff;cursor:pointer}
+:root:not([data-theme="dark"]) button{color:#fff}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) button{color:#06201c}}
+:root[data-theme="dark"] button{color:#06201c}
+button.g{background:transparent;color:var(--tx);border:1px solid var(--bd)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+.row{display:flex;gap:8px;margin:10px 0}.row>button{flex:1}
+.bar{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.big{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums}
+.pill{padding:3px 10px;border-radius:99px;border:1.5px solid currentColor;font-size:.88rem;font-weight:500}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.wn{color:var(--wn)}
+.cw{background:#000;border-radius:8px;overflow:hidden;line-height:0}
+canvas{width:100%;height:auto}
+.pg{height:8px;border-radius:4px;background:var(--bd);overflow:hidden;margin-top:4px}
+.pg i{display:block;height:100%;width:0;background:var(--ac)}.pg i.o{background:var(--bad)}
+#nb{white-space:pre-wrap;font-size:1.08rem;margin-top:6px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.9rem;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd)}
+td:nth-child(2){min-width:120px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<section id="setup">
+<h1>Presentation Practice</h1>
+<p class="m">Upload your .pptx (for notes and timing) and the PDF exported from the same deck (for slide visuals). Files stay in your browser.</p>
+<div class="card">
+<label for="fp">PowerPoint file (.pptx)</label><input type="file" id="fp" accept=".pptx">
+<label for="ff">PDF export of the same deck</label><input type="file" id="ff" accept=".pdf,application/pdf">
+<label for="tm">Target total time (minutes)</label><input type="number" id="tm" value="30" min="1">
+<div class="row"><button id="go">Load and check notes</button></div>
+<div id="msg" class="m"></div>
+</div>
+<div id="chk"></div>
+<div id="hist"></div>
+</section>
+
+<section id="prac" hidden>
+<div class="bar"><span id="tt" class="big">0:00</span><span id="pace" class="pill ok">On pace</span><span id="sn" class="m"></span></div>
+<div class="cw"><canvas id="cv"></canvas></div>
+<div class="m" style="margin-top:8px">This slide <b id="st">0:00</b> of <span id="sg">0:00</span></div>
+<div class="pg"><i id="pb"></i></div>
+<div class="card" id="nt"><b>Notes</b><div id="nb"></div></div>
+<div class="row"><button id="pv" class="g" aria-label="Previous slide">Back</button><button id="pp">Pause</button><button id="nx" aria-label="Next slide">Next</button></div>
+<div class="row"><button id="hn" class="g">Hide notes</button><button id="fin" class="g">Finish run</button></div>
+<p class="m">Keys: right arrow or space = next, left arrow = back, P = pause.</p>
+</section>
+
+<section id="rev" hidden>
+<h1>Run summary</h1>
+<div id="rs"></div>
+<div class="row"><button id="again">Practice again</button><button id="home" class="g">Back to setup</button></div>
+</section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script>
+const $=s=>document.querySelector(s),WPM=130;
+const fmt=s=>{s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let S=[],pdf,cur=0,spent=[],tg=[],run=false,last=0,hide=false,deck='',rid=0,task;
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const ld=()=>{try{return JSON.parse(localStorage.getItem('pp-runs')||'[]')}catch(e){return[]}};
+const sv=r=>{try{localStorage.setItem('pp-runs',JSON.stringify(r.slice(-40)))}catch(e){}};
+
+const res=(base,t)=>{if(t[0]=='/')return t.slice(1);const p=base.split('/');p.pop();t.split('/').forEach(s=>s=='..'?p.pop():p.push(s));return p.join('/')};
+const sp=(doc,f)=>[...doc.getElementsByTagName('p:sp')].filter(s=>{const h=s.getElementsByTagName('p:ph')[0];return f(h&&h.getAttribute('type'))}).map(s=>[...s.getElementsByTagName('a:p')].map(p=>[...p.getElementsByTagName('a:t')].map(t=>t.textContent).join('')).filter(Boolean).join('\n')).join('\n');
+
+async function parsePptx(file){
+ const z=await JSZip.loadAsync(await file.arrayBuffer()),dp=new DOMParser();
+ const rd=async p=>z.file(p)?dp.parseFromString(await z.file(p).async('string'),'application/xml'):null;
+ const pres=await rd('ppt/presentation.xml'),prel=await rd('ppt/_rels/presentation.xml.rels');
+ if(!pres||!prel)throw new Error('This does not look like a .pptx file.');
+ const rel={};prel.querySelectorAll('Relationship').forEach(r=>rel[r.getAttribute('Id')]=r.getAttribute('Target'));
+ const ids=[...pres.getElementsByTagName('p:sldId')].map(e=>e.getAttribute('r:id'));
+ const out=[];
+ for(const id of ids){
+  const path=res('ppt/presentation.xml',rel[id]),sd=await rd(path);
+  const rp=path.replace(/([^/]+)$/,'_rels/$1.rels'),rr=await rd(rp);
+  let notes='';
+  if(rr){const n=[...rr.querySelectorAll('Relationship')].find(r=>/notesSlide$/.test(r.getAttribute('Type')));
+   if(n){const nd=await rd(res(path,n.getAttribute('Target')));if(nd)notes=sp(nd,t=>t=='body').trim()}}
+  const title=sd?sp(sd,t=>t=='title'||t=='ctrTitle').replace(/\n/g,' ').trim():'';
+  out.push({t:title,n:notes,w:notes?notes.split(/\s+/).length:0});
+ }
+ return out;
+}
+
+$('#go').onclick=async()=>{
+ const a=$('#fp').files[0],b=$('#ff').files[0],m=$('#msg');
+ if(!a||!b){m.textContent='Choose both a .pptx and a PDF.';return}
+ m.textContent='Reading files…';
+ try{S=await parsePptx(a);pdf=await pdfjsLib.getDocument({data:await b.arrayBuffer()}).promise;deck=a.name}
+ catch(e){m.textContent='Could not read the files: '+e.message;return}
+ m.textContent='';plan();
+};
+
+function plan(){
+ const T=Math.max(1,+$('#tm').value||30)*60,w=S.map(s=>Math.max(s.w,20)),sum=w.reduce((a,b)=>a+b,0);
+ tg=w.map(x=>T*x/sum);
+ const withN=S.filter(s=>s.w),mean=withN.length?withN.reduce((a,s)=>a+s.w,0)/withN.length:0;
+ const speak=S.reduce((a,s)=>a+s.w,0)/WPM*60,noN=S.filter(s=>!s.w).length;
+ let msgs='';
+ if(pdf.numPages!=S.length)msgs+=`<p class="bad">The PDF has ${pdf.numPages} pages but the PPTX has ${S.length} slides. Re-export the PDF so they match.</p>`;
+ msgs+=`<p>Your notes take about <b>${fmt(speak)}</b> to read aloud at ${WPM} words per minute. Target: <b>${fmt(T)}</b>. `+(speak>T*1.1?'<span class="bad">Notes are longer than your target.</span>':speak<T*.6?'<span class="wn">Notes are much shorter than your target.</span>':'<span class="ok">Close to your target.</span>')+'</p>';
+ if(noN)msgs+=`<p class="wn">${noN} slide${noN>1?'s have':' has'} no notes.</p>`;
+ const rows=S.map((s,i)=>{const e=s.w/WPM*60;let f='OK',c='ok';if(!s.w){f='No notes';c='bad'}else if(s.w>mean*1.75){f='Heavy for one slide';c='wn'}
+  return `<tr><td>${i+1}</td><td>${esc(s.t)||'(no title)'}</td><td>${s.w}</td><td>${fmt(e)}</td><td>${fmt(tg[i])}</td><td class="${c}">${f}</td></tr>`}).join('');
+ $('#chk').innerHTML=`<div class="card"><b>Notes check</b>${msgs}<div class="tw"><table><tr><th>#</th><th>Title</th><th>Words</th><th>Speak</th><th>Target</th><th>Flag</th></tr>${rows}</table></div><div class="row"><button id="st0">Start practice</button></div></div>`;
+ $('#st0').onclick=start;
+ hist();
+}
+
+function hist(){
+ const r=ld().filter(x=>x.deck==deck).slice(-5).reverse();
+ $('#hist').innerHTML=r.length?`<div class="card"><b>Recent runs of this deck</b><table><tr><th>Date</th><th>Time</th><th>Target</th><th>Slides over</th></tr>${r.map(x=>`<tr><td>${new Date(x.d).toLocaleDateString()}</td><td>${fmt(x.sp.reduce((a,b)=>a+b,0))}</td><td>${fmt(x.tg.reduce((a,b)=>a+b,0))}</td><td>${x.sp.filter((v,i)=>v>x.tg[i]).length}</td></tr>`).join('')}</table></div>`:'';
+}
+
+function view(id){['setup','prac','rev'].forEach(v=>$('#'+v).hidden=v!=id);window.scrollTo(0,0)}
+
+function start(){
+ cur=0;spent=S.map(()=>0);hide=false;run=true;last=Date.now();
+ $('#hn').textContent='Hide notes';$('#nb').hidden=false;$('#pp').textContent='Pause';
+ view('prac');show();
+}
+
+async function show(){
+ const n=++rid;$('#sn').textContent=`Slide ${cur+1} of ${S.length}`;
+ $('#nb').textContent=S[cur].n||'(No notes on this slide)';ui();
+ const pg=await pdf.getPage(Math.min(cur+1,pdf.numPages)),c=$('#cv'),v=pg.getViewport({scale:1}),
+  vp=pg.getViewport({scale:c.parentElement.clientWidth/v.width*(devicePixelRatio||1)});
+ if(n!=rid)return;
+ if(task)try{task.cancel()}catch(e){}
+ c.width=vp.width;c.height=vp.height;
+ task=pg.render({canvasContext:c.getContext('2d'),viewport:vp});
+ try{await task.promise}catch(e){}
+}
+
+function ui(){
+ const t=spent.reduce((a,b)=>a+b,0),T=tg.reduce((a,b)=>a+b,0),b4=tg.slice(0,cur).reduce((a,b)=>a+b,0),
+  d=t-(b4+Math.min(spent[cur],tg[cur])),p=$('#pace'),on=Math.abs(d)<10;
+ $('#tt').textContent=fmt(t)+' / '+fmt(T);
+ p.textContent=on?'On pace':fmt(Math.abs(d))+(d>0?' over':' ahead');p.className='pill '+(on||d<0?'ok':'bad');
+ $('#st').textContent=fmt(spent[cur]);$('#sg').textContent=fmt(tg[cur]);
+ const pb=$('#pb');pb.style.width=Math.min(100,spent[cur]/tg[cur]*100)+'%';pb.className=spent[cur]>tg[cur]?'o':'';
+}
+
+setInterval(()=>{if(!run)return;const n=Date.now();spent[cur]+=(n-last)/1000;last=n;ui()},250);
+
+const go=i=>{if(i<0||i>=S.length)return;cur=i;last=Date.now();show()};
+const tog=()=>{run=!run;last=Date.now();$('#pp').textContent=run?'Pause':'Resume'};
+$('#nx').onclick=()=>go(cur+1);$('#pv').onclick=()=>go(cur-1);$('#pp').onclick=tog;
+$('#hn').onclick=()=>{hide=!hide;$('#nb').hidden=hide;$('#hn').textContent=hide?'Show notes':'Hide notes'};
+$('#fin').onclick=finish;$('#again').onclick=start;$('#home').onclick=()=>{view('setup');hist()};
+document.addEventListener('keydown',e=>{
+ if($('#prac').hidden||/INPUT|TEXTAREA/.test(e.target.tagName))return;
+ if(e.key=='ArrowRight'||e.key==' '){e.preventDefault();go(cur+1)}
+ else if(e.key=='ArrowLeft'){e.preventDefault();go(cur-1)}
+ else if(e.key=='p'||e.key=='P')tog();
+});
+
+function finish(){
+ run=false;
+ const r=ld();r.push({deck,d:Date.now(),sp:spent.map(Math.round),tg:tg.map(Math.round)});sv(r);
+ const t=spent.reduce((a,b)=>a+b,0),T=tg.reduce((a,b)=>a+b,0),d=t-T;
+ const rows=S.map((s,i)=>{const x=spent[i]-tg[i],c=Math.abs(x)<10?'':x>0?'bad':'ok';
+  return `<tr><td>${i+1}</td><td>${esc(s.t)||'(no title)'}</td><td>${fmt(tg[i])}</td><td>${fmt(spent[i])}</td><td class="${c}">${x>0?'+':'-'}${fmt(Math.abs(x))}</td></tr>`}).join('');
+ $('#rs').innerHTML=`<div class="card"><p class="big">${fmt(t)}</p><p>Target ${fmt(T)}. You finished <b class="${d>10?'bad':'ok'}">${fmt(Math.abs(d))} ${d>0?'over':'under'}</b>.</p></div>
+ <div class="card"><b>Time per slide</b><div class="tw"><table><tr><th>#</th><th>Title</th><th>Target</th><th>Actual</th><th>Diff</th></tr>${rows}</table></div></div>`;
+ view('rev');
+}
+</script>
+</body>
+</html>
