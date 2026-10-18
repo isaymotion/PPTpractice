@@ -45,6 +45,8 @@ table{border-collapse:collapse;width:100%;font-size:.9rem;font-variant-numeric:t
 th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd)}
 td:nth-child(2){min-width:120px}
 [hidden]{display:none!important}
+.cmp{position:relative;min-width:90px}.cmp:after{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--tx)}
+footer{margin:24px 0 8px;text-align:center}footer a{color:var(--ac)}.tip{border-top:1px solid var(--bd);padding:10px 0}
 </style>
 </head>
 <body>
@@ -64,6 +66,7 @@ td:nth-child(2){min-width:120px}
 </section>
 
 <section id="prac" hidden>
+<div class="row"><button id="ex" class="g">Exit to start page</button></div>
 <div class="bar"><span id="tt" class="big">0:00</span><span id="pace" class="pill ok">On pace</span><span id="sn" class="m"></span></div>
 <div class="cw"><canvas id="cv"></canvas></div>
 <div class="m" style="margin-top:8px">This slide <b id="st">0:00</b> of <span id="sg">0:00</span></div>
@@ -75,10 +78,12 @@ td:nth-child(2){min-width:120px}
 </section>
 
 <section id="rev" hidden>
-<h1>Run summary</h1>
+<h1>Run analysis</h1>
 <div id="rs"></div>
+<div id="rv" class="card" hidden><div class="bar"><b id="rvt"></b><span id="rvi" class="m"></span></div><div class="cw"><canvas id="rcv"></canvas></div><div id="rvn" class="card"></div><div class="row"><button id="rvp" class="g">Previous flagged</button><button id="rvx" class="g">Next flagged</button><button id="rvc">Close</button></div></div>
 <div class="row"><button id="again">Practice again</button><button id="home" class="g">Back to setup</button></div>
 </section>
+<footer class="m">App created by Isabella Navarro, MD. Latest version October 2026. <a href="mailto:isaymotion@gmail.com">isaymotion@gmail.com</a></footer>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -157,7 +162,7 @@ function start(){
 
 async function show(){
  const n=++rid;$('#sn').textContent=`Slide ${cur+1} of ${S.length}`;
- $('#nb').textContent=S[cur].n||'(No notes on this slide)';ui();
+ $('#nb').textContent=S[cur].n||'(No notes on this slide)';$('#nx').textContent=cur==S.length-1?'Finish':'Next';ui();
  const pg=await pdf.getPage(Math.min(cur+1,pdf.numPages)),c=$('#cv'),v=pg.getViewport({scale:1}),
   vp=pg.getViewport({scale:c.parentElement.clientWidth/v.width*(devicePixelRatio||1)});
  if(n!=rid)return;
@@ -180,12 +185,16 @@ setInterval(()=>{if(!run)return;const n=Date.now();spent[cur]+=(n-last)/1000;las
 
 const go=i=>{if(i<0||i>=S.length)return;cur=i;last=Date.now();show()};
 const tog=()=>{run=!run;last=Date.now();$('#pp').textContent=run?'Pause':'Resume'};
-$('#nx').onclick=()=>go(cur+1);$('#pv').onclick=()=>go(cur-1);$('#pp').onclick=tog;
+const nxt=()=>cur>=S.length-1?finish():go(cur+1);
+let exT;
+function exitRun(){const b=$('#ex');if(!b.dataset.arm){b.dataset.arm=1;b.textContent='Tap again to exit (run not saved)';exT=setTimeout(()=>{delete b.dataset.arm;b.textContent='Exit to start page'},3500);return}
+ clearTimeout(exT);delete b.dataset.arm;b.textContent='Exit to start page';run=false;view('setup');hist()}
+$('#nx').onclick=nxt;$('#ex').onclick=exitRun;$('#pv').onclick=()=>go(cur-1);$('#pp').onclick=tog;
 $('#hn').onclick=()=>{hide=!hide;$('#nb').hidden=hide;$('#hn').textContent=hide?'Show notes':'Hide notes'};
 $('#fin').onclick=finish;$('#again').onclick=start;$('#home').onclick=()=>{view('setup');hist()};
 document.addEventListener('keydown',e=>{
  if($('#prac').hidden||/INPUT|TEXTAREA/.test(e.target.tagName))return;
- if(e.key=='ArrowRight'||e.key==' '){e.preventDefault();go(cur+1)}
+ if(e.key=='ArrowRight'||e.key==' '){e.preventDefault();nxt()}
  else if(e.key=='ArrowLeft'){e.preventDefault();go(cur-1)}
  else if(e.key=='p'||e.key=='P')tog();
 });
@@ -194,12 +203,46 @@ function finish(){
  run=false;
  const r=ld();r.push({deck,d:Date.now(),sp:spent.map(Math.round),tg:tg.map(Math.round)});sv(r);
  const t=spent.reduce((a,b)=>a+b,0),T=tg.reduce((a,b)=>a+b,0),d=t-T;
- const rows=S.map((s,i)=>{const x=spent[i]-tg[i],c=Math.abs(x)<10?'':x>0?'bad':'ok';
-  return `<tr><td>${i+1}</td><td>${esc(s.t)||'(no title)'}</td><td>${fmt(tg[i])}</td><td>${fmt(spent[i])}</td><td class="${c}">${x>0?'+':'-'}${fmt(Math.abs(x))}</td></tr>`}).join('');
- $('#rs').innerHTML=`<div class="card"><p class="big">${fmt(t)}</p><p>Target ${fmt(T)}. You finished <b class="${d>10?'bad':'ok'}">${fmt(Math.abs(d))} ${d>0?'over':'under'}</b>.</p></div>
- <div class="card"><b>Time per slide</b><div class="tw"><table><tr><th>#</th><th>Title</th><th>Target</th><th>Actual</th><th>Diff</th></tr>${rows}</table></div></div>`;
+ df=S.map((s,i)=>spent[i]-tg[i]);
+ flagged=S.map((s,i)=>i).filter(i=>df[i]>10).sort((a,b)=>df[b]-df[a]);
+ const lost=flagged.reduce((a,i)=>a+df[i],0),fast=S.filter((s,i)=>spent[i]<tg[i]*.5).length,sugg=[];
+ if(d>T*.1)sugg.push(`You ran ${fmt(d)} over. Trim the flagged slides first: they account for ${fmt(lost)} of the overrun.`);
+ else if(d<-T*.15)sugg.push(`You finished ${fmt(-d)} under target. You have room to expand slides that felt rushed, or to leave time for questions.`);
+ else sugg.push('Your total time is close to the target. Focus on the slide-level differences.');
+ if(flagged.length)sugg.push(`The biggest overrun was slide ${flagged[0]+1} (+${fmt(df[flagged[0]])}). Fix that one first, then run the full deck again.`);
+ if(fast)sugg.push(`${fast} slide${fast>1?'s':''} took under half the target time. Check that you did not skip key points.`);
+ sugg.push('Practice each flagged slide on its own, 2 or 3 times with the timer, then run the full deck again and compare.');
+ sugg.push('If a slide keeps running over, split it in two or cut its least important point rather than speaking faster.');
+ const rows=S.map((s,i)=>{const x=df[i],c=Math.abs(x)<=10?'':x>0?'bad':'ok';
+  return `<tr><td>${i+1}</td><td>${esc(s.t)||'(no title)'}</td><td>${fmt(tg[i])}</td><td>${fmt(spent[i])}</td><td class="${c}">${x>0?'+':'-'}${fmt(Math.abs(x))}</td><td><div class="pg cmp"><i class="${x>10?'o':''}" style="width:${Math.min(100,spent[i]/(2*tg[i])*100)}%"></i></div></td></tr>`}).join('');
+ $('#rs').innerHTML=`<div class="card"><p class="big">${fmt(t)}</p><p>Target ${fmt(T)}. You finished <b class="${d>T*.1?'bad':'ok'}">${fmt(Math.abs(d))} ${d>0?'over':'under'}</b>.</p><p class="m">${flagged.length} of ${S.length} slides ran over by more than 10 seconds${flagged.length?' ('+fmt(lost)+' lost in total)':''}. ${fast?fast+' finished in under half their target time.':''}</p></div>
+ <div class="card"><b>Time per slide</b><div class="tw"><table><tr><th>#</th><th>Title</th><th>Target</th><th>Actual</th><th>Diff</th><th>vs target</th></tr>${rows}</table></div><p class="m">In the bar, the vertical line marks the target time.</p></div>
+ <div class="card"><b>Slides to review</b>${flagged.length?flagged.map((i,k)=>`<div class="tip"><b>Slide ${i+1}${S[i].t?': '+esc(S[i].t):''}</b> <span class="bad">+${fmt(df[i])}</span><br>${tip(i)}<div class="row"><button class="g" data-k="${k}">Review this slide</button></div></div>`).join(''):'<p class="ok">No slides ran over. Nice pacing.</p>'}</div>
+ <div class="card"><b>How to improve</b><ul>${sugg.map(s=>`<li>${s}</li>`).join('')}</ul></div>`;
+ $('#rs').querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>openRv(+b.dataset.k));
+ $('#rv').hidden=true;
  view('rev');
 }
+let flagged=[],df=[],rk=0,rtask;
+function tip(i){const e=S[i].w/WPM*60;
+ if(!S[i].w)return 'No notes on this slide. Add a short script or key points so you stop improvising here.';
+ if(e>tg[i]*1.1)return `Your notes alone take about ${fmt(e)}, longer than the ${fmt(tg[i])} slot. Cut roughly ${Math.ceil((e-tg[i])*WPM/60)} words or move detail to a handout.`;
+ return `Your notes fit the slot (${fmt(e)}), so the extra time is likely ad-libbing, long pauses, or going back to this slide. Rehearse this slide and its transition on its own.`}
+async function openRv(k){
+ rk=k;const i=flagged[k],c=$('#rcv');$('#rv').hidden=false;
+ $('#rvt').textContent=`Slide ${i+1}${S[i].t?': '+S[i].t:''}`;
+ $('#rvi').textContent=`${k+1} of ${flagged.length} flagged`;
+ $('#rvn').innerHTML=`<b>${fmt(spent[i])} spent, target ${fmt(tg[i])} (+${fmt(df[i])})</b><div style="white-space:pre-wrap;margin-top:6px">${esc(S[i].n)||'(No notes on this slide)'}</div><p class="m">${tip(i)}</p>`;
+ $('#rv').scrollIntoView({behavior:'smooth',block:'start'});
+ const pg=await pdf.getPage(Math.min(i+1,pdf.numPages)),v=pg.getViewport({scale:1}),vp=pg.getViewport({scale:c.parentElement.clientWidth/v.width*(devicePixelRatio||1)});
+ if(rk!=k)return;
+ if(rtask)try{rtask.cancel()}catch(e){}
+ c.width=vp.width;c.height=vp.height;rtask=pg.render({canvasContext:c.getContext('2d'),viewport:vp});
+ try{await rtask.promise}catch(e){}
+}
+$('#rvp').onclick=()=>openRv((rk-1+flagged.length)%flagged.length);
+$('#rvx').onclick=()=>openRv((rk+1)%flagged.length);
+$('#rvc').onclick=()=>{$('#rv').hidden=true};
 </script>
 </body>
 </html>
